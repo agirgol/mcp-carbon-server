@@ -32,8 +32,11 @@ those numbers have been verified against the cited source.
 
 ## Install
 
+Published as a .NET global tool. Releases are pre-release for now — the tool surface is
+still settling and only the stdio transport is implemented — so the flag is required:
+
 ```sh
-dotnet tool install -g McpCarbonServer
+dotnet tool install -g McpCarbonServer --prerelease
 ```
 
 Then point an MCP host at the `mcp-carbon-server` command. For Claude Desktop, in
