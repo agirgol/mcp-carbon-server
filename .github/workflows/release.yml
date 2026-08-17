@@ -83,11 +83,36 @@ jobs:
       # which it cannot do if anything else has written there.
       - name: Verify the packed tool runs
         run: |
+          # The repository's NuGet.config declares package source mapping, and --add-source
+          # is rejected outright once mapping is in effect: an extra source with no mapping
+          # entry is exactly what mapping exists to prevent. So the check gets its own
+          # config, mapping this one package id to the artifact folder and everything else
+          # to nuget.org. That is stricter than --add-source rather than a way around it -
+          # the install can only satisfy McpCarbonServer from the package just built.
+          cat > tool-check.nuget.config <<XML
+          <?xml version="1.0" encoding="utf-8"?>
+          <configuration>
+            <packageSources>
+              <clear />
+              <add key="nuget.org" value="https://api.nuget.org/v3/index.json" protocolVersion="3" />
+              <add key="packed-tool" value="$PWD/artifacts" />
+            </packageSources>
+            <packageSourceMapping>
+              <packageSource key="packed-tool">
+                <package pattern="McpCarbonServer" />
+              </packageSource>
+              <packageSource key="nuget.org">
+                <package pattern="*" />
+              </packageSource>
+            </packageSourceMapping>
+          </configuration>
+          XML
+
           # --tool-path rather than --global: the check installs into a throwaway folder, so
           # it neither depends on the runner's PATH nor leaves a tool behind for later steps.
           dotnet tool install McpCarbonServer \
             --tool-path ./tool-check \
-            --add-source ./artifacts \
+            --configfile ./tool-check.nuget.config \
             --version "${{ steps.version.outputs.value }}"
 
           printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"ci","version":"1"}}}' \
