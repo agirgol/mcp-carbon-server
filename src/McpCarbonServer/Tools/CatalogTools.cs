@@ -24,7 +24,13 @@ public static class CatalogTools
     /// Lists every factor set compiled into this build.
     /// </summary>
     /// <returns>One summary per set, including provenance and verification status.</returns>
-    [McpServerTool(Name = "list_factor_sets")]
+    [McpServerTool(
+        Name = "list_factor_sets",
+        Title = "List emission factor datasets",
+        ReadOnly = true,
+        Idempotent = true,
+        OpenWorld = false,
+        UseStructuredContent = true)]
     [Description(
         "List every emission factor dataset compiled into this build, with its publisher, " +
         "the geography and reporting period it covers, and whether its numbers have been " +
@@ -42,7 +48,13 @@ public static class CatalogTools
     /// <param name="setId">Restricts results to one factor set.</param>
     /// <param name="limit">Maximum number of results.</param>
     /// <returns>Matching factors, capped at <paramref name="limit"/>.</returns>
-    [McpServerTool(Name = "search_emission_factors")]
+    [McpServerTool(
+        Name = "search_emission_factors",
+        Title = "Search emission factors",
+        ReadOnly = true,
+        Idempotent = true,
+        OpenWorld = false,
+        UseStructuredContent = true)]
     [Description(
         "Search the emission factor catalog and return the factor ids a calculation needs. " +
         "All filters are optional and combine with AND. Prefer searching by activity " +

@@ -1,5 +1,8 @@
 # mcp-carbon-server
 
+[![NuGet](https://img.shields.io/nuget/vpre/McpCarbonServer.svg)](https://www.nuget.org/packages/McpCarbonServer)
+[![ci](https://github.com/agirgol/mcp-carbon-server/actions/workflows/ci.yml/badge.svg)](https://github.com/agirgol/mcp-carbon-server/actions/workflows/ci.yml)
+
 An [MCP](https://modelcontextprotocol.io/) server that gives an LLM client real greenhouse
 gas accounting: Scope 1/2/3 calculation over a versioned, source-cited emission factor
 catalog, with unit conversion and AR5/AR6 GWP set selection.
@@ -75,6 +78,12 @@ requires, instead of being folded into the scopes.
 **Verification status travels with the number.** Factor sets carry a status, and it is
 returned on every result. A figure derived from an unverified set is not a disclosure and
 the response says so.
+
+**Results are data, not prose.** Every tool publishes an output schema and returns
+structured content, so a client gets a validated object rather than a string to parse. The
+tools are annotated read-only and idempotent — they are pure functions over a catalog
+compiled into the binary, reading nothing outside the process — so a client can call them
+without an approval prompt.
 
 ## Building from source
 

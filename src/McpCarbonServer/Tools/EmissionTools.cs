@@ -28,7 +28,13 @@ public static class EmissionTools
     /// <param name="factorId">Identifier of the factor to apply.</param>
     /// <param name="gwpSet">Assessment report whose global warming potentials to use.</param>
     /// <returns>The emissions, with the per-gas breakdown and the factor's provenance.</returns>
-    [McpServerTool(Name = "calculate_emissions")]
+    [McpServerTool(
+        Name = "calculate_emissions",
+        Title = "Calculate emissions from activity data",
+        ReadOnly = true,
+        Idempotent = true,
+        OpenWorld = false,
+        UseStructuredContent = true)]
     [Description(
         "Apply one emission factor to one activity figure and return the CO2e result with " +
         "its per-gas breakdown and the source the factor came from. The activity may be " +
@@ -58,7 +64,13 @@ public static class EmissionTools
     /// <param name="gwpSet">Assessment report whose global warming potentials to use.</param>
     /// <param name="scope2Method">Which scope 2 method the headline total is taken under.</param>
     /// <returns>Totals by scope, the scope 3 category breakdown, and the inventory total.</returns>
-    [McpServerTool(Name = "build_inventory")]
+    [McpServerTool(
+        Name = "build_inventory",
+        Title = "Build a scope 1/2/3 inventory",
+        ReadOnly = true,
+        Idempotent = true,
+        OpenWorld = false,
+        UseStructuredContent = true)]
     [Description(
         "Aggregate several activity lines into a GHG Protocol inventory: scope 1, scope 2 " +
         "reported both location-based and market-based, and scope 3 broken down by " +

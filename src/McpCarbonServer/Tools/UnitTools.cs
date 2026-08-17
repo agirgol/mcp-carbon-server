@@ -19,7 +19,13 @@ public static class UnitTools
     /// <param name="fromUnit">The unit the magnitude is expressed in.</param>
     /// <param name="toUnit">The unit to express the result in.</param>
     /// <returns>The converted quantity and the dimension both units share.</returns>
-    [McpServerTool(Name = "convert_units")]
+    [McpServerTool(
+        Name = "convert_units",
+        Title = "Convert between units",
+        ReadOnly = true,
+        Idempotent = true,
+        OpenWorld = false,
+        UseStructuredContent = true)]
     [Description(
         "Convert a quantity between two units of the same physical dimension - energy, " +
         "volume, mass, distance, freight or passenger transport. Converting across " +
