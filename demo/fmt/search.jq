@@ -1,3 +1,3 @@
-# Collection-returning tools wrap their structured content in an object, because MCP
-# requires structuredContent to be a JSON object rather than a bare array.
-.result[] | "\(.id)\n  \(.scope), per \(.unit), \(.setId)"
+# "returned of matched" first, so a capped result cannot be read as a complete one.
+"\(.returned) of \(.matched) matching factors",
+(.factors[] | "\(.id)\n  \(.scope), per \(.unit), \(.setId)")

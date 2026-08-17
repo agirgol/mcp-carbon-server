@@ -138,11 +138,11 @@ public sealed class CalculationWiringTests(McpServerFixture fixture)
     {
         ArgumentNullException.ThrowIfNull(fixture);
 
-        JsonElement factors = await fixture.CallAsync(
+        JsonElement response = await fixture.CallAsync(
             "search_emission_factors",
             new { scope = "Scope1", limit = 200 });
 
-        foreach (JsonElement factor in factors.EnumerateArray())
+        foreach (JsonElement factor in response.GetProperty("factors").EnumerateArray())
         {
             if (factor.GetProperty("unit").GetString() == unit)
             {
@@ -160,11 +160,11 @@ public sealed class CalculationWiringTests(McpServerFixture fixture)
     {
         ArgumentNullException.ThrowIfNull(fixture);
 
-        JsonElement factors = await fixture.CallAsync(
+        JsonElement response = await fixture.CallAsync(
             "search_emission_factors",
             new { scope = "Scope2", limit = 200 });
 
-        foreach (JsonElement factor in factors.EnumerateArray())
+        foreach (JsonElement factor in response.GetProperty("factors").EnumerateArray())
         {
             if (factor.GetProperty("unit").GetString() == "KilowattHour")
             {

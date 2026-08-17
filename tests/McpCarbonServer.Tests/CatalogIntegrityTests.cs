@@ -60,10 +60,11 @@ public sealed class CatalogIntegrityTests(McpServerFixture fixture)
         JsonElement sets = await fixture.CallAsync("list_factor_sets");
         string[] setIds = [.. sets.EnumerateArray().Select(set => set.GetProperty("id").GetString()!)];
 
-        JsonElement factors = await fixture.CallAsync(
+        JsonElement response = await fixture.CallAsync(
             "search_emission_factors",
             new { query = "gas", limit = 20 });
 
+        JsonElement factors = response.GetProperty("factors");
         Assert.NotEmpty(factors.EnumerateArray());
 
         foreach (JsonElement factor in factors.EnumerateArray())
@@ -75,10 +76,40 @@ public sealed class CatalogIntegrityTests(McpServerFixture fixture)
     [Fact]
     public async Task Search_honours_its_limit()
     {
-        JsonElement factors = await fixture.CallAsync(
+        JsonElement response = await fixture.CallAsync(
             "search_emission_factors",
             new { limit = 3 });
 
-        Assert.Equal(3, factors.EnumerateArray().Count());
+        Assert.Equal(3, response.GetProperty("returned").GetInt32());
+        Assert.Equal(3, response.GetProperty("factors").EnumerateArray().Count());
+    }
+
+    [Fact]
+    public async Task Search_says_how_many_matched_when_it_caps_the_result()
+    {
+        JsonElement capped = await fixture.CallAsync(
+            "search_emission_factors",
+            new { limit = 2 });
+
+        int matched = capped.GetProperty("matched").GetInt32();
+        int returned = capped.GetProperty("returned").GetInt32();
+
+        // The point of the pair. A caller that sees only the two factors it was handed has
+        // no way to tell a catalog holding two from a catalog holding hundreds, and will
+        // state conclusions the data does not support.
+        Assert.Equal(2, returned);
+        Assert.True(matched > returned, "The catalog is too small for this test to mean anything.");
+    }
+
+    [Fact]
+    public async Task Search_reports_matched_equal_to_returned_when_nothing_is_cut()
+    {
+        JsonElement response = await fixture.CallAsync(
+            "search_emission_factors",
+            new { query = "no-activity-matches-this-string", limit = 25 });
+
+        Assert.Equal(0, response.GetProperty("matched").GetInt32());
+        Assert.Equal(0, response.GetProperty("returned").GetInt32());
+        Assert.Empty(response.GetProperty("factors").EnumerateArray());
     }
 }

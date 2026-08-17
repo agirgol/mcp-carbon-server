@@ -58,8 +58,11 @@ public static class CatalogTools
     [Description(
         "Search the emission factor catalog and return the factor ids a calculation needs. " +
         "All filters are optional and combine with AND. Prefer searching by activity " +
-        "wording (for example 'natural gas', 'diesel', 'electricity') over guessing an id.")]
-    public static IReadOnlyList<FactorSummary> SearchEmissionFactors(
+        "wording (for example 'natural gas', 'diesel', 'electricity') over guessing an id. " +
+        "The response reports how many factors matched as well as how many it carries: when " +
+        "'returned' is below 'matched' you are looking at a slice, so narrow the filters or " +
+        "raise the limit before concluding anything about what the catalog contains.")]
+    public static FactorSearchResponse SearchEmissionFactors(
         [Description("Case-insensitive substring matched against the factor id and its activity name. Omit to list everything matching the other filters.")]
         string? query = null,
         [Description("Restrict to one GHG Protocol scope: Scope1 for direct emissions, Scope2 for purchased energy, Scope3 for value chain.")]
@@ -103,9 +106,15 @@ public static class CatalogTools
                 factor.Set.Id.Equals(setId, StringComparison.OrdinalIgnoreCase));
         }
 
-        return matches
+        // Materialised once so the total and the page come from the same filtered sequence.
+        // Counting through a second enumeration would work here - the catalog is static -
+        // but it makes the two figures independently derived, which is how they drift.
+        EmissionFactor[] matched = [.. matches];
+
+        FactorSummary[] page = [.. matched
             .Take(Math.Min(limit, MaxLimit))
-            .Select(Mapping.ToFactorSummary)
-            .ToArray();
+            .Select(Mapping.ToFactorSummary)];
+
+        return new FactorSearchResponse(matched.Length, page.Length, page);
     }
 }

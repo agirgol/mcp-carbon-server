@@ -41,6 +41,25 @@ public sealed record FactorSetSummary(
     SourceInfo Source);
 
 /// <summary>
+/// The outcome of a catalog search.
+/// </summary>
+/// <param name="Matched">
+/// How many factors matched the filters in total, before the result was capped.
+/// </param>
+/// <param name="Returned">How many factors this response carries.</param>
+/// <param name="Factors">The factors, capped at the requested limit.</param>
+/// <remarks>
+/// <paramref name="Matched"/> exists so that a capped result cannot be mistaken for a
+/// complete one. A search that returned twenty-five of ninety-eight matches without saying
+/// so reads exactly like a search that found twenty-five, and a caller working from the
+/// second reading will state a conclusion the data does not support.
+/// </remarks>
+public sealed record FactorSearchResponse(
+    int Matched,
+    int Returned,
+    System.Collections.Generic.IReadOnlyList<FactorSummary> Factors);
+
+/// <summary>
 /// One emission factor, as returned by a catalog search.
 /// </summary>
 /// <param name="Id">Identifier to pass to a calculation tool.</param>

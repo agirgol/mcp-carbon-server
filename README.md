@@ -41,7 +41,7 @@ process for the whole session.
 | Tool | What it does |
 |---|---|
 | `list_factor_sets` | Datasets compiled into this build, with publisher, coverage and verification status |
-| `search_emission_factors` | Find factor ids by activity wording, scope, region or dataset |
+| `search_emission_factors` | Find factor ids by activity wording, scope, region or dataset; reports how many matched as well as how many it returned |
 | `calculate_emissions` | Apply one factor to one activity figure; returns CO2e with per-gas breakdown and provenance |
 | `build_inventory` | Aggregate many lines into scope 1/2/3 totals, scope 2 both ways, scope 3 by category |
 | `convert_units` | Convert between units of the same physical dimension |
