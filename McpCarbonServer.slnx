@@ -2,4 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/McpCarbonServer/McpCarbonServer.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/McpCarbonServer.Tests/McpCarbonServer.Tests.csproj" />
+  </Folder>
 </Solution>

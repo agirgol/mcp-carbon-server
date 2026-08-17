@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!--
+      Single target, unlike the library's test project. The server ships as one net10.0
+      executable, so there is no second framework leg for a regression to hide in.
+    -->
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <!--
+    The tests drive the server as a real child process over stdio rather than calling the
+    tool methods in-process. That is the whole point: it exercises the shipped executable,
+    the stdio framing, the generated JSON schemas and the exception-to-error mapping in one
+    path. It also makes stdout discipline self-testing - a stray write to stdout desyncs the
+    framing, the client fails to parse, and every test here goes red.
+
+    The path is passed in as assembly metadata because the server is launched, not linked,
+    so there is no reference for the runtime to resolve it from.
+  -->
+  <PropertyGroup>
+    <ServerAssemblyPath>$(MSBuildThisFileDirectory)../../src/McpCarbonServer/bin/$(Configuration)/net10.0/mcp-carbon-server.dll</ServerAssemblyPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>ServerAssemblyPath</_Parameter1>
+      <_Parameter2>$(ServerAssemblyPath)</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <!-- Build ordering only; nothing from the server assembly is linked into the tests. -->
+  <ItemGroup>
+    <ProjectReference Include="../../src/McpCarbonServer/McpCarbonServer.csproj"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ModelContextProtocol.Core" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="coverlet.collector" />
+  </ItemGroup>
+
+</Project>

@@ -11,6 +11,7 @@ permissions:
 
 jobs:
   build:
+    name: Build and test
     runs-on: ubuntu-latest
 
     steps:
@@ -23,11 +24,19 @@ jobs:
       - name: Restore
         run: dotnet restore McpCarbonServer.slnx
 
+      - name: Verify formatting
+        run: dotnet format McpCarbonServer.slnx --verify-no-changes --no-restore
+
       # No sibling checkout exists here, so this resolves GhgAccounting from nuget.org.
       # That is the point: CI is the path that proves the published package is enough to
       # build the server, which a local build against the project reference cannot show.
       - name: Build
         run: dotnet build McpCarbonServer.slnx -c Release --no-restore
+
+      # The tests launch the built server as a child process, so they need the Release
+      # binaries the previous step produced.
+      - name: Test
+        run: dotnet test McpCarbonServer.slnx -c Release --no-build
 
       # Packing in CI catches tool-packaging breakage at the commit that caused it rather
       # than at release time.
