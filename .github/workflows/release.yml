@@ -1,0 +1,161 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish, without the leading v (e.g. 0.1.0)"
+        required: true
+
+permissions:
+  contents: write # create the GitHub release
+  id-token: write # request the OIDC token that nuget.org exchanges for a short-lived key
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  release:
+    name: Pack and publish
+    runs-on: ubuntu-latest
+
+    # Publishing to nuget.org is irreversible: a version can be unlisted but never
+    # deleted. Routing the job through an environment gives that step a place to hang a
+    # required-reviewer rule. The name must match the Environment field of the nuget.org
+    # trusted publishing policy.
+    environment: release
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Resolve version
+        id: version
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            version="${{ github.event.inputs.version }}"
+          else
+            version="${GITHUB_REF_NAME#v}"
+          fi
+          echo "value=$version" >> "$GITHUB_OUTPUT"
+          echo "Publishing $version"
+
+      # UseLocalGhgAccounting is pinned off rather than left to resolve itself. It keys on a
+      # sibling checkout existing, which is never true on a hosted runner - but a release is
+      # the one build where a silent fallback to somebody's working copy would be worst, and
+      # it costs nothing to say so explicitly.
+      - name: Restore
+        run: dotnet restore McpCarbonServer.slnx -p:UseLocalGhgAccounting=false
+
+      - name: Build
+        run: >
+          dotnet build McpCarbonServer.slnx
+          -c Release
+          --no-restore
+          -p:UseLocalGhgAccounting=false
+          -p:Version=${{ steps.version.outputs.value }}
+
+      - name: Test
+        run: dotnet test McpCarbonServer.slnx -c Release --no-build -p:UseLocalGhgAccounting=false
+
+      - name: Pack
+        run: >
+          dotnet pack src/McpCarbonServer/McpCarbonServer.csproj
+          -c Release
+          --no-build
+          -o ./artifacts
+          -p:UseLocalGhgAccounting=false
+          -p:Version=${{ steps.version.outputs.value }}
+
+      # A tool package can build and test green and still be unusable: a wrong
+      # ToolCommandName, a missing runtimeconfig, a shim that never starts. None of that is
+      # visible until someone installs it, and by then the version is public and permanent.
+      # So the package is installed from the artifact folder and actually spoken to before
+      # anything is uploaded. Feeding it one initialize request and closing stdin is also the
+      # end-to-end stdout check: the handshake has to come back as the first line of stdout,
+      # which it cannot do if anything else has written there.
+      - name: Verify the packed tool runs
+        run: |
+          # --tool-path rather than --global: the check installs into a throwaway folder, so
+          # it neither depends on the runner's PATH nor leaves a tool behind for later steps.
+          dotnet tool install McpCarbonServer \
+            --tool-path ./tool-check \
+            --add-source ./artifacts \
+            --version "${{ steps.version.outputs.value }}"
+
+          printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"ci","version":"1"}}}' \
+            > handshake.jsonl
+
+          # stdin is held open past the request rather than redirected from the file.
+          # Redirecting delivers EOF immediately, the transport finishes reading before the
+          # host has finished starting, and the server exits having answered nothing - a
+          # green-looking command with an empty stdout. The sleep removes that race.
+          { cat handshake.jsonl; sleep 5; } \
+            | timeout 60 ./tool-check/mcp-carbon-server > response.jsonl 2> server.log || true
+
+          echo "--- server stderr ---"
+          cat server.log || true
+          echo "--- first line of stdout ---"
+          head -1 response.jsonl
+
+          python3 - <<'PY'
+          import json, sys
+
+          with open("response.jsonl", encoding="utf-8") as handle:
+              first = handle.readline()
+
+          if not first.strip():
+              sys.exit("The tool produced no response on stdout.")
+
+          message = json.loads(first)
+          name = message["result"]["serverInfo"]["name"]
+
+          if name != "mcp-carbon-server":
+              sys.exit(f"Unexpected server name: {name}")
+
+          print(f"Handshake OK: {message['result']['serverInfo']}")
+          PY
+
+      # Trusted Publishing: GitHub issues a signed OIDC token, nuget.org validates it
+      # against the policy registered for this repository and workflow file, and returns
+      # an API key valid for one hour. No long-lived secret is stored anywhere.
+      # The key is requested here, immediately before the push, so it cannot expire in
+      # transit.
+      - name: NuGet login
+        id: nuget_login
+        uses: NuGet/login@v1
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
+      - name: Push to NuGet
+        run: >
+          dotnet nuget push "./artifacts/*.nupkg"
+          --api-key ${{ steps.nuget_login.outputs.NUGET_API_KEY }}
+          --source https://api.nuget.org/v3/index.json
+          --skip-duplicate
+
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          # gh does not read the version string, so a SemVer pre-release suffix has to
+          # be turned into the flag by hand. Without it an alpha takes the "Latest"
+          # badge and reads as a stable release on the repository front page.
+          prerelease=""
+          case "$VERSION" in
+            *-*) prerelease="--prerelease" ;;
+          esac
+
+          gh release create "v$VERSION" \
+            ./artifacts/*.nupkg \
+            --title "v$VERSION" \
+            --generate-notes \
+            $prerelease
