@@ -33,6 +33,27 @@ those numbers have been verified against the cited source.
 | `build_inventory` | Aggregate many lines into scope 1/2/3 totals, scope 2 both ways, scope 3 by category |
 | `convert_units` | Convert between units of the same physical dimension |
 
+## Resources
+
+Attachable context, projected from the compiled catalog rather than written out, so a
+resource cannot drift from what the tools compute.
+
+| URI | What it is |
+|---|---|
+| `carbon://factor-sets` | Every dataset in this build, with publisher, coverage, licence and verification status |
+| `carbon://factor-sets/{setId}` | One dataset in full, including every factor it publishes |
+| `carbon://gwp/{gwpSet}` | The global warming potentials actually compiled in for one assessment report |
+
+The last one is worth attaching when a disclosure has to state which potentials it used:
+the answer is a property of the numbers shipped, not of what the report says in general.
+
+## Prompts
+
+| Prompt | What it frames |
+|---|---|
+| `ghg_inventory_intake` | Collecting activity data and turning it into a scope 1/2/3 inventory |
+| `disclosure_review` | Checking draft figures against what a disclosure has to carry, reporting gaps rather than filling them |
+
 ## Install
 
 Published as a .NET global tool. Releases are pre-release for now — the tool surface is

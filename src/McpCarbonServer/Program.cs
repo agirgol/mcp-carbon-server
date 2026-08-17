@@ -55,7 +55,9 @@ internal static class Program
                     options.ServerInstructions = Instructions;
                 })
                 .WithStdioServerTransport()
-                .WithToolsFromAssembly();
+                .WithToolsFromAssembly()
+                .WithResourcesFromAssembly()
+                .WithPromptsFromAssembly();
 
             await builder.Build().RunAsync().ConfigureAwait(false);
             return 0;
