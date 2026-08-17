@@ -1,0 +1,72 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+[*.{json,yml,yaml}]
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
+
+[*.{csproj,props,targets,slnx}]
+indent_size = 2
+
+[*.cs]
+# Namespaces
+csharp_style_namespace_declarations = file_scoped:warning
+
+# Usings
+dotnet_sort_system_directives_first = true
+dotnet_separate_import_directive_groups = false
+csharp_using_directive_placement = outside_namespace:warning
+
+# Braces and spacing
+csharp_new_line_before_open_brace = all
+csharp_new_line_before_else = true
+csharp_new_line_before_catch = true
+csharp_new_line_before_finally = true
+csharp_prefer_braces = true:warning
+csharp_indent_case_contents = true
+csharp_indent_switch_labels = true
+
+# var is used where the constructed type is already on the line, and spelled out
+# otherwise, so that a reader never has to look elsewhere to learn what they have.
+csharp_style_var_for_built_in_types = false:suggestion
+csharp_style_var_when_type_is_apparent = true:suggestion
+csharp_style_var_elsewhere = false:suggestion
+
+# Modern expression style
+csharp_style_expression_bodied_properties = true:suggestion
+csharp_style_expression_bodied_accessors = true:suggestion
+csharp_style_expression_bodied_methods = when_on_single_line:suggestion
+csharp_style_pattern_matching_over_is_with_cast_check = true:warning
+csharp_style_pattern_matching_over_as_with_null_check = true:warning
+csharp_style_prefer_not_pattern = true:warning
+
+# Accessibility modifiers are always written out; a reader should not have to
+# remember the language default to know what is public.
+dotnet_style_require_accessibility_modifiers = always:warning
+dotnet_style_readonly_field = true:warning
+dotnet_style_object_initializer = true:suggestion
+dotnet_style_collection_initializer = true:suggestion
+dotnet_style_prefer_conditional_expression_over_return = false:silent
+dotnet_style_prefer_conditional_expression_over_assignment = false:silent
+
+# Naming is left to the CA analyzers rather than restated here. A hand-written
+# private-field rule cannot express that constants stay PascalCase while mutable
+# fields take a leading underscore, and the version that can is longer than the
+# convention it enforces.
+
+[tests/**/*.cs]
+# Test names read better as Method_Condition_Expectation.
+dotnet_diagnostic.CA1707.severity = none
+
+# An inline expected array is the clearest way to write an assertion; hoisting it to a
+# static readonly field to save an allocation in a test is a false economy.
+dotnet_diagnostic.CA1861.severity = none

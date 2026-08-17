@@ -1,0 +1,54 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>McpCarbonServer</RootNamespace>
+    <AssemblyName>mcp-carbon-server</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <!--
+    Shipped as a global tool so trying it costs one command rather than a clone and a
+    build: `dotnet tool install -g McpCarbonServer` then point any MCP host at
+    `mcp-carbon-server`.
+  -->
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>mcp-carbon-server</ToolCommandName>
+    <PackageId>McpCarbonServer</PackageId>
+    <Title>MCP Carbon Server</Title>
+    <Description>An MCP server that exposes GHG Protocol greenhouse gas accounting to LLM clients: Scope 1/2/3 calculation over a versioned, source-cited emission factor catalog, with unit conversion and AR5/AR6 GWP set selection. Speaks stdio.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="/" Visible="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="ModelContextProtocol" />
+    <PackageReference Include="Serilog.Extensions.Hosting" />
+    <PackageReference Include="Serilog.Sinks.Console" />
+  </ItemGroup>
+
+  <!--
+    GhgRequireVerifiedCatalog is forced on for the local project reference because the
+    library defaults it off, and with it off the build additionally compiles in the
+    synthetic factor sets under data/examples/. The published package is always packed
+    with the gate on, so leaving the default here would let a tool resolve an example
+    factor id locally and throw KeyNotFoundException against the package - the exact
+    class of bug that only shows up in CI. Forcing it on keeps both paths on the same
+    catalog.
+  -->
+  <ItemGroup Condition="'$(UseLocalGhgAccounting)' == 'true'">
+    <ProjectReference Include="$(GhgAccountingProjectPath)"
+                      AdditionalProperties="GhgRequireVerifiedCatalog=true" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(UseLocalGhgAccounting)' != 'true'">
+    <PackageReference Include="GhgAccounting" />
+  </ItemGroup>
+
+</Project>

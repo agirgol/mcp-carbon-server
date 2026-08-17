@@ -1,0 +1,13 @@
+bin/
+obj/
+artifacts/
+[Dd]ebug/
+[Rr]elease/
+*.user
+*.suo
+.vs/
+.vscode/
+.idea/
+*.nupkg
+*.snupkg
+.DS_Store

@@ -1,0 +1,61 @@
+<Project>
+
+  <!-- Language / compiler settings shared by every project in the repository. -->
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+  </PropertyGroup>
+
+  <!-- Reproducible builds. -->
+  <PropertyGroup>
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+  </PropertyGroup>
+
+  <!-- Nothing is packable unless it opts in. -->
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <VersionPrefix>0.1.0</VersionPrefix>
+  </PropertyGroup>
+
+  <!--
+    GhgAccounting is developed in a sibling repository. When that checkout is present the
+    build references the project directly, so a change to the library is visible here on
+    the next build with no pack/restore cycle in between. When it is absent - CI, a fresh
+    clone, `dotnet tool install` - the build falls back to the published package. The
+    condition keys on the path existing, so neither environment needs a flag set.
+
+    Override with -p:UseLocalGhgAccounting=false to build against the package locally,
+    which is worth doing before tagging a release.
+  -->
+  <PropertyGroup>
+    <GhgAccountingProjectPath>$(MSBuildThisFileDirectory)../carbon-accounting-dotnet/src/GhgAccounting/GhgAccounting.csproj</GhgAccountingProjectPath>
+    <UseLocalGhgAccounting Condition="'$(UseLocalGhgAccounting)' == '' AND Exists('$(GhgAccountingProjectPath)')">true</UseLocalGhgAccounting>
+    <UseLocalGhgAccounting Condition="'$(UseLocalGhgAccounting)' == ''">false</UseLocalGhgAccounting>
+  </PropertyGroup>
+
+  <!-- Shared NuGet metadata; only consumed by projects with IsPackable=true. -->
+  <PropertyGroup>
+    <Authors>Ege Ağırgöl</Authors>
+    <Company>Ege Ağırgöl</Company>
+    <Copyright>Copyright (c) Ege Ağırgöl</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/agirgol/mcp-carbon-server</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/agirgol/mcp-carbon-server</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>mcp;model-context-protocol;ghg;emissions;carbon;esg;llm;ai</PackageTags>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
+</Project>

@@ -1,0 +1,40 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore McpCarbonServer.slnx
+
+      # No sibling checkout exists here, so this resolves GhgAccounting from nuget.org.
+      # That is the point: CI is the path that proves the published package is enough to
+      # build the server, which a local build against the project reference cannot show.
+      - name: Build
+        run: dotnet build McpCarbonServer.slnx -c Release --no-restore
+
+      # Packing in CI catches tool-packaging breakage at the commit that caused it rather
+      # than at release time.
+      - name: Pack
+        run: dotnet pack src/McpCarbonServer/McpCarbonServer.csproj -c Release --no-build -o ./artifacts
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nupkg
+          path: ./artifacts/*.nupkg
