@@ -166,6 +166,39 @@ jobs:
           --source https://api.nuget.org/v3/index.json
           --skip-duplicate
 
+      # A successful push is not a published package. --skip-duplicate reports success on a
+      # 409, so a version accepted once and then rejected server-side would keep this job
+      # green on every re-run while nothing ever ships. The push's exit code says the request
+      # was accepted; only the feed says the package exists.
+      #
+      # This warns rather than fails, deliberately. A bounded wait cannot tell "still in
+      # validation" from "never going to appear" - only nuget.org's own package status can,
+      # and validation here has taken hours rather than minutes. Failing on a timeout would
+      # mark a release that did publish as broken, skip the steps after it, and train
+      # everyone to ignore the one check that would catch a real drop.
+      #
+      # The flat container is the right index to poll: it is the content index, it lists
+      # every version regardless of SemVer level, and it reflects a publish first. Search and
+      # registration5-semver1 both exclude SemVer 2.0.0 versions like 0.2.0-alpha.1 by
+      # design, so neither could answer the question at all.
+      - name: Confirm the version reached nuget.org
+        env:
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          feed="https://api.nuget.org/v3-flatcontainer/mcpcarbonserver/index.json"
+
+          for attempt in $(seq 1 30); do
+            if curl -sf "$feed" | grep -q "\"$VERSION\""; then
+              echo "$VERSION is live on nuget.org after ~$((attempt * 20))s"
+              exit 0
+            fi
+            sleep 20
+          done
+
+          echo "::warning::$VERSION was pushed without error but is not on the feed after 10 minutes. This is usually validation still running - check https://www.nuget.org/packages/McpCarbonServer before announcing the release, and treat it as a failed publish only if the version is missing from your nuget.org package list."
+          echo "Versions the feed currently reports:"
+          curl -sf "$feed" || echo "  (the package id is not on the feed at all)"
+
       - name: Create the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}

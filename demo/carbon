@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+#
+# Drives one tool call against the MCP server over stdio and prints the tool's structured
+# result as JSON, so the demo can pipe it into jq like any other command.
+#
+# This is a demo aid, not a client. A real MCP host keeps one server process for a whole
+# session and speaks the protocol properly; this starts a server, performs the handshake,
+# makes a single call and exits. It exists so a terminal recording can show what the tools
+# actually return without a chat client in the frame.
+#
+# Usage: demo/carbon <tool> [json-arguments]
+
+set -euo pipefail
+
+tool=${1:?usage: demo/carbon <tool> [json-arguments]}
+arguments=${2:-'{}'}
+
+# Split on whitespace so the override can carry arguments — MCP_CARBON_SERVER="dotnet
+# path/to/mcp-carbon-server.dll" points the demo at a local build without installing it.
+read -r -a server <<< "${MCP_CARBON_SERVER:-mcp-carbon-server}"
+
+# Compacted onto one line first. The transport frames messages by newline, so pretty-printed
+# arguments read from a file would be delivered as several truncated messages rather than
+# one request, and the call would come back empty.
+arguments=$(jq -c . <<< "$arguments")
+
+response=$(
+  {
+    printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"demo","version":"1"}}}'
+    printf '%s\n' '{"jsonrpc":"2.0","method":"notifications/initialized"}'
+    printf '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"%s","arguments":%s}}\n' "$tool" "$arguments"
+
+    # stdin is held open past the request on purpose. Closing it immediately delivers EOF
+    # before the host has finished starting, and the server exits having answered nothing.
+    sleep 2
+  } | "${server[@]}" 2>/dev/null | jq -c 'select(.id == 2)'
+)
+
+if [ -z "$response" ]; then
+  echo "no response from the server" >&2
+  exit 1
+fi
+
+# A tool error is reported as a result with isError set, not as a JSON-RPC error, so it has
+# to be checked for explicitly. Printing it to stderr and exiting non-zero makes it behave
+# like any other failing command rather than looking like output.
+if [ "$(jq -r '.result.isError // false' <<< "$response")" = "true" ]; then
+  jq -r '.result.content[0].text' <<< "$response" >&2
+  exit 1
+fi
+
+jq '.result.structuredContent' <<< "$response"

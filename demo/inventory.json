@@ -1,0 +1,14 @@
+{
+  "lines": [
+    {
+      "value": 1000,
+      "unit": "CubicMetre",
+      "factorId": "defra-2026/fuels/gaseous-fuels/natural-gas/cubic-metres"
+    },
+    {
+      "value": 50000,
+      "unit": "KilowattHour",
+      "factorId": "defra-2026/uk-electricity/electricity-generated/electricity-uk/kwh/kwh"
+    }
+  ]
+}

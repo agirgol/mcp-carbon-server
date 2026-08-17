@@ -23,6 +23,19 @@ This server replaces that with a lookup against a compiled catalog. Every result
 the factor it used, the dataset that published it, the publication year, and whether
 those numbers have been verified against the cited source.
 
+![Searching the factor catalog, applying a factor, building an inventory, and having a
+mismatched unit refused](demo/demo.gif)
+
+The recording is generated from [`demo/demo.tape`](demo/demo.tape) against the published
+tool — `vhs demo/demo.tape` re-renders it. The tape is the source and the GIF is a build
+artifact, so when the tool surface changes the demo is regenerated rather than re-recorded,
+and it cannot quietly drift into showing a command that no longer exists.
+
+`demo/carbon` is the small helper the recording drives: it performs a handshake, makes one
+tool call and prints the structured result, so the tools can be shown without a chat client
+in the frame. It is a demo aid rather than a client — a real MCP host keeps one server
+process for the whole session.
+
 ## Tools
 
 | Tool | What it does |
