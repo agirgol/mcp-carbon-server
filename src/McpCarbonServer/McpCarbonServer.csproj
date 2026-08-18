@@ -19,16 +19,33 @@
     <ToolCommandName>mcp-carbon-server</ToolCommandName>
     <PackageId>McpCarbonServer</PackageId>
     <Title>MCP Carbon Server</Title>
-    <Description>An MCP server that exposes GHG Protocol greenhouse gas accounting to LLM clients: Scope 1/2/3 calculation over a versioned, source-cited emission factor catalog, with unit conversion and AR5/AR6 GWP set selection. Speaks stdio.</Description>
+    <Description>An MCP server that exposes GHG Protocol greenhouse gas accounting to LLM clients: Scope 1/2/3 calculation over a versioned, source-cited emission factor catalog, with unit conversion and AR5/AR6 GWP set selection. Speaks stdio and Streamable HTTP.</Description>
   </PropertyGroup>
 
   <ItemGroup>
     <None Include="../../README.md" Pack="true" PackagePath="/" Visible="false" />
   </ItemGroup>
 
+  <!--
+    One executable serves both transports rather than shipping a second host project. The
+    tools, resources and prompts are discovered from this assembly, so a split would mean
+    extracting them into a library and keeping two hosts in step for no gain a flag does
+    not already give.
+
+    The ASP.NET Core shared framework is a reference, not a download: anyone who can run
+    `dotnet tool install` has the SDK, which carries it.
+  -->
   <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <!--
+    Microsoft.Extensions.Hosting is deliberately absent: the ASP.NET Core framework
+    reference above already carries it, and NuGet flags the duplicate.
+  -->
+  <ItemGroup>
     <PackageReference Include="ModelContextProtocol" />
+    <PackageReference Include="ModelContextProtocol.AspNetCore" />
     <PackageReference Include="Serilog.Extensions.Hosting" />
     <PackageReference Include="Serilog.Sinks.Console" />
   </ItemGroup>

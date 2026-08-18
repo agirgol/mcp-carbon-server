@@ -1,6 +1,9 @@
 using System;
+using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -11,56 +14,28 @@ using Serilog.Events;
 namespace McpCarbonServer;
 
 /// <summary>
-/// Entry point. Hosts the MCP server over stdio.
+/// Entry point. Serves MCP over stdio by default, or over HTTP with <c>--http</c>.
 /// </summary>
 internal static class Program
 {
+    private const string HttpSwitch = "--http";
+
     internal static async Task<int> Main(string[] args)
     {
-        // Under the stdio transport, stdout is the JSON-RPC frame channel and nothing
-        // else may write to it. A single log line on stdout desynchronises the framing,
-        // and the host's failure mode is to drop the server silently rather than report
-        // a parse error - so this is configured before anything else can log.
-        //
-        // standardErrorFromLevel: Verbose routes *every* level to stderr, not just
-        // errors. ClearProviders() removes the console logger the generic host installs
-        // by default, which writes to stdout and would otherwise reintroduce the
-        // problem regardless of how Serilog is configured.
-        Log.Logger = new LoggerConfiguration()
-            .MinimumLevel.Information()
-            .Enrich.FromLogContext()
-            .WriteTo.Console(
-                standardErrorFromLevel: LogEventLevel.Verbose,
-                outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
-            .CreateLogger();
+        ArgumentNullException.ThrowIfNull(args);
+
+        bool http = args.Contains(HttpSwitch, StringComparer.Ordinal);
+
+        // Removed before the host sees it. The command-line configuration provider expects
+        // --key=value or --key value, so a bare flag would either swallow the argument after
+        // it or be rejected outright.
+        string[] hostArgs = [.. args.Where(argument => !string.Equals(argument, HttpSwitch, StringComparison.Ordinal))];
 
         try
         {
-            HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
-
-            builder.Logging.ClearProviders();
-            builder.Services.AddSerilog();
-
-            builder.Services
-                .AddMcpServer(options =>
-                {
-                    options.ServerInfo = new Implementation
-                    {
-                        Name = "mcp-carbon-server",
-                        Title = "MCP Carbon Server",
-                        Version = ServerVersion,
-                        WebsiteUrl = "https://github.com/agirgol/mcp-carbon-server",
-                    };
-
-                    options.ServerInstructions = Instructions;
-                })
-                .WithStdioServerTransport()
-                .WithToolsFromAssembly()
-                .WithResourcesFromAssembly()
-                .WithPromptsFromAssembly();
-
-            await builder.Build().RunAsync().ConfigureAwait(false);
-            return 0;
+            return http
+                ? await RunHttpAsync(hostArgs).ConfigureAwait(false)
+                : await RunStdioAsync(hostArgs).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -72,6 +47,108 @@ internal static class Program
             await Log.CloseAndFlushAsync().ConfigureAwait(false);
         }
     }
+
+    /// <summary>
+    /// Serves one client over stdin and stdout, which is what a desktop MCP host launches.
+    /// </summary>
+    private static async Task<int> RunStdioAsync(string[] args)
+    {
+        // Under stdio, stdout is the JSON-RPC frame channel and nothing else may write to
+        // it. A single log line there desynchronises the framing, and the host's failure
+        // mode is to drop the server silently rather than report a parse error - so this is
+        // configured before anything else can log.
+        //
+        // standardErrorFromLevel: Verbose routes every level to stderr, not just errors.
+        ConfigureLogging(toStandardError: true);
+
+        HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
+
+        // ClearProviders removes the console logger the generic host installs by default,
+        // which writes to stdout and would reintroduce the problem regardless of how Serilog
+        // is configured.
+        builder.Logging.ClearProviders();
+        builder.Services.AddSerilog();
+
+        AddCarbonMcpServer(builder.Services).WithStdioServerTransport();
+
+        await builder.Build().RunAsync().ConfigureAwait(false);
+        return 0;
+    }
+
+    /// <summary>
+    /// Serves many clients over HTTP, which is what a deployment or a container runs.
+    /// </summary>
+    private static async Task<int> RunHttpAsync(string[] args)
+    {
+        // Nothing owns stdout here, and log collectors - containers especially - expect it
+        // there. The stderr rule exists only because stdio takes stdout for the protocol.
+        ConfigureLogging(toStandardError: false);
+
+        WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
+
+        builder.Logging.ClearProviders();
+        builder.Services.AddSerilog();
+
+        // Streamable HTTP, and only that. The SDK marks the legacy SSE transport obsolete
+        // because it has no request backpressure and is meant for completely trusted clients
+        // in isolated processes; turning it on to widen client compatibility would trade a
+        // real property of a network-facing server for reach it does not need. Transport
+        // options are left at the SDK's defaults, which track the current protocol revision
+        // - pinning them here would freeze decisions this server has no reason to make.
+        AddCarbonMcpServer(builder.Services).WithHttpTransport();
+
+        WebApplication app = builder.Build();
+
+        app.MapMcp("/mcp");
+
+        // Not part of MCP. A container orchestrator needs a cheap endpoint that answers
+        // without opening a protocol session, and every MCP route expects a handshake.
+        app.MapGet("/health", () => Results.Ok(new { status = "ok", version = ServerVersion }));
+
+        await app.RunAsync().ConfigureAwait(false);
+        return 0;
+    }
+
+    /// <summary>
+    /// Registers the server identity and every tool, resource and prompt in this assembly.
+    /// </summary>
+    /// <remarks>
+    /// Shared by both transports on purpose. A capability that existed over one and not the
+    /// other would be a difference nobody could explain from the outside.
+    /// </remarks>
+    private static IMcpServerBuilder AddCarbonMcpServer(IServiceCollection services) =>
+        services
+            .AddMcpServer(options =>
+            {
+                options.ServerInfo = new Implementation
+                {
+                    Name = "mcp-carbon-server",
+                    Title = "MCP Carbon Server",
+                    Version = ServerVersion,
+                    WebsiteUrl = "https://github.com/agirgol/mcp-carbon-server",
+                };
+
+                options.ServerInstructions = Instructions;
+            })
+            .WithToolsFromAssembly()
+            .WithResourcesFromAssembly()
+            .WithPromptsFromAssembly();
+
+    private static void ConfigureLogging(bool toStandardError)
+    {
+        LoggerConfiguration configuration = new LoggerConfiguration()
+            .MinimumLevel.Information()
+            .Enrich.FromLogContext();
+
+        Log.Logger = toStandardError
+            ? configuration.WriteTo.Console(
+                standardErrorFromLevel: LogEventLevel.Verbose,
+                outputTemplate: LogTemplate).CreateLogger()
+            : configuration.WriteTo.Console(outputTemplate: LogTemplate).CreateLogger();
+    }
+
+    private const string LogTemplate =
+        "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}";
 
     /// <summary>
     /// How the server expects to be used, sent to the client at initialize.

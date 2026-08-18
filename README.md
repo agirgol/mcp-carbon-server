@@ -89,6 +89,32 @@ Then point an MCP host at the `mcp-carbon-server` command. For Claude Desktop, i
 }
 ```
 
+## Transports
+
+The same server serves both. Which one you want depends on who is starting it.
+
+**stdio** is the default and needs no arguments. A desktop host launches the process and
+owns it; one client, one process, no ports.
+
+**Streamable HTTP** is `--http`, for a deployment that serves clients it did not start:
+
+```sh
+mcp-carbon-server --http                                  # http://localhost:5000
+mcp-carbon-server --http --urls http://0.0.0.0:8080       # or ASPNETCORE_URLS
+```
+
+MCP is served at `/mcp`. `/health` answers without opening a protocol session, which is
+what a container orchestrator needs — every MCP route expects a handshake first.
+
+The legacy SSE transport is deliberately not mapped. The SDK marks it obsolete: it has no
+request backpressure and is meant for completely trusted clients in isolated processes.
+Enabling it to widen client compatibility would trade a real property of a network-facing
+server for reach it does not need.
+
+Tools, resources, prompts and server identity are registered once and shared by both
+transports, and a test asserts the two surfaces match — a capability available over one and
+not the other is a difference nobody could explain from the outside.
+
 ## Design notes
 
 **stdout belongs to the protocol.** Under the stdio transport, stdout carries JSON-RPC

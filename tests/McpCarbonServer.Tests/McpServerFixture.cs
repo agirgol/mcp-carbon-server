@@ -87,7 +87,10 @@ public sealed class McpServerFixture : IAsyncLifetime
         return string.Concat(result.Content.OfType<TextContentBlock>().Select(block => block.Text));
     }
 
-    private static string ResolveServerAssemblyPath()
+    /// <summary>
+    /// The built server assembly, as baked into this test assembly at build time.
+    /// </summary>
+    internal static string ResolveServerAssemblyPath()
     {
         string? configured = typeof(McpServerFixture).Assembly
             .GetCustomAttributes<AssemblyMetadataAttribute>()
@@ -112,6 +115,9 @@ public sealed class McpServerFixture : IAsyncLifetime
     }
 }
 
-/// <summary>Shares one server process across every test class that opts into it.</summary>
+/// <summary>
+/// Shares one server process per transport across every test class that opts into it.
+/// </summary>
 [CollectionDefinition(nameof(ServerUnderTest))]
-public sealed class ServerUnderTest : ICollectionFixture<McpServerFixture>;
+public sealed class ServerUnderTest
+    : ICollectionFixture<McpServerFixture>, ICollectionFixture<HttpServerFixture>;
