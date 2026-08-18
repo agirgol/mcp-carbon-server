@@ -7,6 +7,10 @@
 # scripted rather than screen-captured: a hand-made recording drifts out of date silently
 # and nobody notices until it is showing a command that no longer exists.
 #
+# Order matters. The refused unit conversion sits third rather than last, so the recording
+# comes to rest on an inventory rather than on an error message. A GIF is paused far more
+# often than it is watched, and the frame it stops on is the one most people see.
+#
 # Typed commands are written in backticks rather than double quotes, because VHS has no
 # escape for a double quote inside a double-quoted string and every command here carries
 # JSON.
@@ -46,18 +50,18 @@ Type `demo/carbon calculate_emissions '{"value":1000,"unit":"CubicMetre","factor
 Enter
 Sleep 4s
 
-Type `# Aggregate several activity lines into a GHG Protocol inventory.`
-Enter
-Sleep 1200ms
-
-Type `demo/carbon build_inventory "$(cat demo/inventory.json)" | jq -rf demo/fmt/inventory.jq`
-Enter
-Sleep 4s
-
 Type `# A unit measuring another quantity is refused rather than guessed at.`
 Enter
 Sleep 1200ms
 
 Type `demo/carbon calculate_emissions '{"value":1000,"unit":"KilowattHour","factorId":"defra-2026/fuels/gaseous-fuels/natural-gas/cubic-metres"}'`
+Enter
+Sleep 4s
+
+Type `# Aggregate several activity lines into a GHG Protocol inventory.`
+Enter
+Sleep 1200ms
+
+Type `demo/carbon build_inventory "$(cat demo/inventory.json)" | jq -rf demo/fmt/inventory.jq`
 Enter
 Sleep 4s
