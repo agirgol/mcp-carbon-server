@@ -23,6 +23,21 @@ This server replaces that with a lookup against a compiled catalog. Every result
 the factor it used, the dataset that published it, the publication year, and whether
 those numbers have been verified against the cited source.
 
+![Claude Desktop answering a scope 2 question, with the factor id, its source, its
+publication year and its verification status quoted back](demo/claude-desktop.png)
+
+The provenance in that answer is not the model being careful. It is what the tool returned,
+because a result that cannot be traced to a dataset is not something this server will
+produce.
+
+![The same question and the same factor, answered in Turkish](demo/claude-desktop-tr.png)
+
+The same question in Turkish, resolving to the same factor and the same figure. Nothing in
+the server is localised — factor ids, dataset names and verification status are what the
+publishers wrote, and the answer is rendered in whatever language the conversation is in.
+Which is the useful property: a Turkish disclosure still cites DESNZ and Eurostat by the
+names an auditor can look up.
+
 ![Searching the factor catalog, applying a factor, building an inventory, and having a
 mismatched unit refused](demo/demo.gif)
 
@@ -45,6 +60,14 @@ process for the whole session.
 | `calculate_emissions` | Apply one factor to one activity figure; returns CO2e with per-gas breakdown and provenance |
 | `build_inventory` | Aggregate many lines into scope 1/2/3 totals, scope 2 both ways, scope 3 by category |
 | `convert_units` | Convert between units of the same physical dimension |
+
+Each is annotated read-only, idempotent and closed-world — they are pure functions over a
+catalog compiled into the binary, reading nothing outside the process and writing nothing
+at all. A host can act on that: Claude Desktop groups them as read-only and offers to allow
+them without prompting per call.
+
+![Claude Desktop listing the five tools under "Read-only tools" with an "Always allow"
+setting](demo/claude-desktop-tools.png)
 
 ## Resources
 
