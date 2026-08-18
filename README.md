@@ -115,6 +115,24 @@ Tools, resources, prompts and server identity are registered once and shared by 
 transports, and a test asserts the two surfaces match — a capability available over one and
 not the other is a difference nobody could explain from the outside.
 
+## Container
+
+```sh
+docker run --rm -p 8080:8080 ghcr.io/agirgol/mcp-carbon-server:latest
+curl -s localhost:8080/health
+```
+
+The image serves the HTTP transport only. stdio is for a desktop host that launches the
+process and owns its stdin and stdout, which is not something a container gives you.
+
+It runs as a non-root user, carries a `HEALTHCHECK` against `/health`, and is published for
+`linux/amd64` and `linux/arm64`. The publish is deliberately not trimmed: tools, resources
+and prompts are discovered by reflection over the assembly, and a trimmer has no way to see
+that — trimming would produce an image that starts cleanly and serves an empty tool list.
+
+Because the server keeps no state between requests, instances can sit behind a load
+balancer without session affinity.
+
 ## Design notes
 
 **stdout belongs to the protocol.** Under the stdio transport, stdout carries JSON-RPC

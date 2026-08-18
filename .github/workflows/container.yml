@@ -1,0 +1,119 @@
+name: Container
+
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to tag the image with, without the leading v (e.g. 0.4.0)"
+        required: true
+
+permissions:
+  contents: read
+  packages: write # push to GHCR
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE: ${{ github.repository }}
+
+jobs:
+  container:
+    name: Build and publish the image
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Resolve version
+        id: version
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            version="${{ github.event.inputs.version }}"
+          else
+            version="${GITHUB_REF_NAME#v}"
+          fi
+          echo "value=$version" >> "$GITHUB_OUTPUT"
+          echo "Building $version"
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      # Built for this runner and loaded locally first, so the image can be started and
+      # spoken to before anything is published. A container tag is mutable where a NuGet
+      # version is not, so this is cheaper insurance than the tool check — but an image that
+      # cannot serve a request should still never reach the registry.
+      - name: Build for verification
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          platforms: linux/amd64
+          tags: verify:${{ steps.version.outputs.value }}
+          build-args: VERSION=${{ steps.version.outputs.value }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Verify the image serves MCP
+        env:
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          docker run -d --name verify -p 8080:8080 "verify:$VERSION"
+
+          for _ in $(seq 1 60); do
+            curl -sf http://127.0.0.1:8080/health > /dev/null && break
+            sleep 1
+          done
+
+          echo "--- /health ---"
+          curl -sf http://127.0.0.1:8080/health | tee health.json
+          echo
+
+          # The version has to come back from inside the container. A health endpoint that
+          # answers with the wrong build is a green check on the wrong artifact.
+          grep -q "\"$VERSION\"" health.json
+
+          echo "--- initialize ---"
+          curl -sf -X POST http://127.0.0.1:8080/mcp \
+            -H 'Content-Type: application/json' \
+            -H 'Accept: application/json, text/event-stream' \
+            -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"ci","version":"1"}}}' \
+            | tee initialize.txt
+          echo
+
+          grep -q '"name":"mcp-carbon-server"' initialize.txt
+
+          # Root in a container that speaks HTTP to the outside is a default worth failing on.
+          docker exec verify id -u | grep -qv '^0$'
+
+          docker rm -f verify
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE }}
+          # No "latest" on a pre-release. A tag that means "the one to use" should not point
+          # at an alpha because an alpha happened to be published most recently.
+          tags: |
+            type=semver,pattern={{version}},value=${{ steps.version.outputs.value }}
+            type=raw,value=latest,enable=${{ !contains(steps.version.outputs.value, '-') }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: VERSION=${{ steps.version.outputs.value }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

@@ -1,0 +1,18 @@
+# Build outputs — copying these in would poison the container's obj/ with host paths and
+# defeat layer caching on every rebuild.
+**/bin/
+**/obj/
+artifacts/
+
+# Not part of the image.
+.git/
+.github/
+.vs/
+.vscode/
+.idea/
+demo/
+tests/
+*.md
+*.gif
+*.user
+.DS_Store
