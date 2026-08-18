@@ -184,6 +184,23 @@ before tagging a release, since the two do not compile in the same factor catalo
 dotnet build McpCarbonServer.slnx -p:UseLocalGhgAccounting=false
 ```
 
+## Tests
+
+```sh
+dotnet test McpCarbonServer.slnx
+```
+
+The tests launch the built server as a child process and speak MCP to it — over stdio and
+over HTTP — rather than calling the tool methods in-process. That exercises the shipped
+executable, the transports, the generated schemas and the exception-to-error mapping in one
+path, and makes stdout discipline self-testing: a stray write to stdout under stdio desyncs
+the framing, the client fails to parse, and the whole suite goes red at once.
+
+There is no coverage figure, and that is the cost of the choice above. A collector
+instruments the test process while the code under test runs in another one, so it reports
+zero packages — which presents as a line rate of 1. A hundred percent that measures nothing
+is worse than no number.
+
 ## Licence
 
 MIT. Emission factor data carries the licence of its publisher; see the `NOTICE` file in

@@ -39,12 +39,26 @@
                       ReferenceOutputAssembly="false" />
   </ItemGroup>
 
+  <!--
+    No coverage collector, deliberately.
+
+    The code under test runs in a child process — that is the point of these tests — while a
+    collector instruments the test process. The server assembly is not even referenced here
+    (ReferenceOutputAssembly is false above), so there is nothing for it to attach to.
+    Running the XPlat Code Coverage collector produces a report with zero packages, and a
+    report with zero packages presents as a line rate of 1. Wiring that into CI would publish
+    a hundred percent that measures nothing, which is worse than publishing no figure at all.
+    Cross-process collection via dotnet-coverage was tried and its profiler does not attach
+    either.
+
+    The trade is deliberate: these tests prove the shipped executable answers the protocol
+    correctly, and the cost is that line coverage is not measurable from here.
+  -->
   <ItemGroup>
     <PackageReference Include="ModelContextProtocol.Core" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="xunit.runner.visualstudio" />
-    <PackageReference Include="coverlet.collector" />
   </ItemGroup>
 
 </Project>
