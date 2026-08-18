@@ -69,25 +69,64 @@ the answer is a property of the numbers shipped, not of what the report says in 
 
 ## Install
 
-Published as a .NET global tool. Releases are pre-release for now — the tool surface is
-still settling and only the stdio transport is implemented — so the flag is required:
+Needs the **.NET 10 runtime** — both `Microsoft.NETCore.App` and `Microsoft.AspNetCore.App`,
+the second because the same executable also serves HTTP. The .NET 10 SDK includes both.
+
+Published as a .NET global tool. Releases are pre-release for now, so the flag is required:
 
 ```sh
 dotnet tool install -g McpCarbonServer --prerelease
 ```
 
-Then point an MCP host at the `mcp-carbon-server` command. For Claude Desktop, in
-`claude_desktop_config.json`:
+Then point an MCP host at the `mcp-carbon-server` command.
+
+### Claude Desktop
+
+Current versions manage local MCP servers as extensions. Hand-editing
+`claude_desktop_config.json` no longer works — the app rewrites that file on quit and drops
+an `mcpServers` key it did not put there, so the server never starts and nothing explains
+why.
+
+Create a folder containing a single `manifest.json`:
 
 ```json
 {
-  "mcpServers": {
-    "carbon": {
-      "command": "mcp-carbon-server"
+  "manifest_version": "0.3",
+  "name": "mcp-carbon-server",
+  "display_name": "Carbon",
+  "version": "0.4.0",
+  "description": "GHG Protocol greenhouse gas accounting over a source-cited emission factor catalog.",
+  "author": { "name": "Your Name" },
+  "server": {
+    "type": "binary",
+    "entry_point": "/absolute/path/to/mcp-carbon-server",
+    "mcp_config": {
+      "command": "/absolute/path/to/mcp-carbon-server",
+      "args": []
     }
   }
 }
 ```
+
+Then **Settings → Extensions → Install Unpacked Extension** and pick that folder.
+
+Two things that will otherwise cost an evening:
+
+**Use an absolute path.** On macOS a GUI application does not inherit your shell's `PATH`,
+so `~/.dotnet/tools` is not on it and a bare `mcp-carbon-server` is not found. `which
+mcp-carbon-server` gives you the path to paste.
+
+**If the extension installs but reports it cannot connect**, check
+`~/Library/Logs/Claude/mcp-server-*.log`. A second .NET installation is the usual cause: the
+launcher resolves the runtime from the default location rather than from whichever `dotnet`
+your shell uses, and if that one is older the process exits immediately. Point it at the
+right root by adding to `mcp_config`:
+
+```json
+"env": { "DOTNET_ROOT": "/opt/homebrew/opt/dotnet/libexec" }
+```
+
+That path is for a Homebrew install; `dotnet --info` reports the correct root for yours.
 
 ## Transports
 

@@ -112,11 +112,17 @@ public sealed class CalculationWiringTests(McpServerFixture fixture)
             });
 
         // Location-based and market-based are separate disclosures. The response carries
-        // whichever the lines actually reported and leaves the other absent rather than
-        // defaulting it to zero, which would read as a claim that it is zero.
+        // whichever the lines actually reported and gives the other as null rather than as
+        // zero, which would read as a claim that it is zero.
+        //
+        // Null and not absent: the output schema requires the property, so omitting it makes
+        // the result fail validation against the schema this same server publishes. This
+        // assertion used to demand absence, which is how that shipped.
         Assert.True(inventory.TryGetProperty("scope2LocationBased", out JsonElement locationBased));
         Assert.True(locationBased.GetProperty("value").GetDouble() > 0);
-        Assert.False(inventory.TryGetProperty("scope2MarketBased", out _));
+
+        Assert.True(inventory.TryGetProperty("scope2MarketBased", out JsonElement marketBased));
+        Assert.Equal(JsonValueKind.Null, marketBased.ValueKind);
     }
 
     [Fact]

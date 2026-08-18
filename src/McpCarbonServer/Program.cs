@@ -1,12 +1,15 @@
 using System;
 using System.Linq;
 using System.Reflection;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using ModelContextProtocol;
 using ModelContextProtocol.Protocol;
 using Serilog;
 using Serilog.Events;
@@ -130,9 +133,33 @@ internal static class Program
 
                 options.ServerInstructions = Instructions;
             })
-            .WithToolsFromAssembly()
+            .WithToolsFromAssembly(serializerOptions: SerializerOptions)
+            // Resources take no serializer options and need none: they return JSON they
+            // serialised themselves.
             .WithResourcesFromAssembly()
-            .WithPromptsFromAssembly();
+            .WithPromptsFromAssembly(serializerOptions: SerializerOptions);
+
+    /// <summary>
+    /// Serialisation for tool results, differing from the default in one respect: nulls are
+    /// written rather than omitted.
+    /// </summary>
+    /// <remarks>
+    /// The generated output schema marks every property required, including the nullable
+    /// ones - a factor set with no end date, a scope 2 total under a method no line reported,
+    /// an uncertainty the publisher never gave. Omitting those keys produces structured
+    /// content that does not satisfy the schema the same server just published, and a client
+    /// that validates one against the other rejects the result: the call fails with the tool
+    /// having answered correctly, and nothing in the failure says why.
+    ///
+    /// Writing the null is also the better contract. "Not reported" and "absent from this
+    /// response" are different claims, and a consumer should not have to tell them apart by
+    /// checking whether a key exists.
+    /// </remarks>
+    private static readonly JsonSerializerOptions SerializerOptions =
+        new(McpJsonUtilities.DefaultOptions)
+        {
+            DefaultIgnoreCondition = JsonIgnoreCondition.Never,
+        };
 
     private static void ConfigureLogging(bool toStandardError)
     {

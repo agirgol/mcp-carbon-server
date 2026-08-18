@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
@@ -162,6 +163,77 @@ public sealed class ToolContractTests(McpServerFixture fixture)
         Assert.NotEqual("0.0.0", fixture.Client.ServerInfo.Version);
 
         Assert.False(string.IsNullOrWhiteSpace(fixture.Client.ServerInstructions));
+    }
+
+    [Fact]
+    public async Task Structured_content_satisfies_the_schema_the_server_publishes()
+    {
+        string factorId = await CalculationWiringTests.FindFactorAsync(fixture, "CubicMetre");
+
+        (string Tool, object? Arguments)[] calls =
+        [
+            ("list_factor_sets", null),
+            ("search_emission_factors", new { limit = 3 }),
+            ("convert_units", new { value = 1.0, fromUnit = "CubicMetre", toUnit = "Litre" }),
+            ("calculate_emissions", new { value = 1000.0, unit = "CubicMetre", factorId }),
+            ("build_inventory", new { lines = new[] { new { value = 100.0, unit = "CubicMetre", factorId } } }),
+        ];
+
+        IList<McpClientTool> tools = await fixture.Client.ListToolsAsync(cancellationToken: TestContext.Current.CancellationToken);
+
+        foreach ((string tool, object? arguments) in calls)
+        {
+            CallToolResult result = await fixture.CallRawAsync(tool, arguments);
+
+            Assert.NotEqual(true, result.IsError);
+            Assert.NotNull(result.StructuredContent);
+
+            JsonElement schema = Assert.Single(tools, candidate => candidate.Name == tool).ProtocolTool.OutputSchema
+                ?? throw new InvalidOperationException($"'{tool}' publishes no output schema.");
+
+            (JsonElement objectSchema, JsonElement payload) = Unwrap(schema, result.StructuredContent!.Value);
+
+            if (!objectSchema.TryGetProperty("required", out JsonElement required))
+            {
+                continue;
+            }
+
+            // The failure this guards against is silent and total: the tool answers
+            // correctly, the transport delivers it, and a client that validates the payload
+            // against the schema the same server published rejects the call. Nothing in the
+            // error says which property was missing. It shipped once, because nulls were
+            // omitted while the schema marked them required.
+            foreach (JsonElement property in required.EnumerateArray())
+            {
+                string name = property.GetString()!;
+
+                Assert.True(
+                    payload.TryGetProperty(name, out _),
+                    $"'{tool}' declares '{name}' required but its structured content omits it.");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Collection-returning tools wrap their payload in a single <c>result</c> property,
+    /// because structured content has to be an object. Descend through it so the assertion
+    /// applies to the item schema rather than the wrapper.
+    /// </summary>
+    private static (JsonElement Schema, JsonElement Payload) Unwrap(JsonElement schema, JsonElement content)
+    {
+        if (!schema.TryGetProperty("properties", out JsonElement properties) ||
+            !properties.TryGetProperty("result", out JsonElement wrapped) ||
+            properties.EnumerateObject().Count() != 1 ||
+            !wrapped.TryGetProperty("items", out JsonElement items))
+        {
+            return (schema, content);
+        }
+
+        JsonElement array = content.GetProperty("result");
+
+        return array.GetArrayLength() == 0
+            ? (schema, content)
+            : (items, array[0]);
     }
 
     private async Task<McpClientTool> GetToolAsync(string name)
