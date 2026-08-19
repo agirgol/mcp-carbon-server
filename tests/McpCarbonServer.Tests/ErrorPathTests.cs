@@ -1,3 +1,5 @@
+using System;
+using System.Text.Json;
 using System.Threading.Tasks;
 using ModelContextProtocol.Protocol;
 using Xunit;
@@ -50,6 +52,87 @@ public sealed class ErrorPathTests(McpServerFixture fixture)
         string message = McpServerFixture.TextOf(result);
         Assert.Contains("Volume", message);
         Assert.Contains("Energy", message);
+    }
+
+    [Fact]
+    public async Task Aggregate_only_factor_names_the_assessment_report_that_works()
+    {
+        // Many published tables give a single CO2e figure and no per-gas breakdown -
+        // most of DEFRA's material-use and waste rows are like this. Such a figure is
+        // only meaningful under the report it was aggregated with, and the library
+        // refuses to re-aggregate it rather than invent the split the publisher withheld.
+        //
+        // That refusal is correct and recoverable: the same factor works under its own
+        // set. Whether the caller can discover that depends entirely on the message
+        // surviving, which is what this asserts.
+        (string factorId, string workingSet) = await FindAggregateOnlyFactorAsync(fixture);
+
+        string otherSet = workingSet == "Ar6" ? "Ar5" : "Ar6";
+
+        CallToolResult result = await fixture.CallRawAsync(
+            "calculate_emissions",
+            new { value = 10.0, unit = "Tonne", factorId, gwpSet = otherSet });
+
+        Assert.True(result.IsError);
+
+        string message = McpServerFixture.TextOf(result);
+        Assert.Contains(factorId, message, StringComparison.Ordinal);
+        Assert.Contains(workingSet, message, StringComparison.Ordinal);
+        Assert.Contains("gwpSet", message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Finds a factor that publishes only an aggregate CO2e figure, along with the
+    /// assessment report it was published under, by trying each set until one works.
+    /// </summary>
+    /// <remarks>
+    /// Discovered rather than hard-coded: which rows are aggregate-only is a property of
+    /// whichever catalog is compiled in, and a pinned id would retire with the next
+    /// dataset revision.
+    /// </remarks>
+    private static async Task<(string FactorId, string WorkingSet)> FindAggregateOnlyFactorAsync(
+        McpServerFixture fixture)
+    {
+        JsonElement search = await fixture.CallAsync(
+            "search_emission_factors",
+            new { scope = "Scope3", limit = 200 });
+
+        foreach (JsonElement factor in search.GetProperty("factors").EnumerateArray())
+        {
+            if (factor.GetProperty("unit").GetString() != "Tonne")
+            {
+                continue;
+            }
+
+            string id = factor.GetProperty("id").GetString()!;
+
+            // A factor with a gas breakdown succeeds under every set and is not the
+            // subject here; one that succeeds under exactly one is.
+            string? working = null;
+            int successes = 0;
+
+            foreach (string set in new[] { "Ar4", "Ar5", "Ar6" })
+            {
+                CallToolResult attempt = await fixture.CallRawAsync(
+                    "calculate_emissions",
+                    new { value = 10.0, unit = "Tonne", factorId = id, gwpSet = set });
+
+                // IsError is nullable; absent means success.
+                if (attempt.IsError != true)
+                {
+                    successes++;
+                    working ??= set;
+                }
+            }
+
+            if (successes == 1 && working is not null)
+            {
+                return (id, working);
+            }
+        }
+
+        throw new InvalidOperationException(
+            "No aggregate-only scope 3 factor is compiled into this build, so the guard has nothing to check.");
     }
 
     [Fact]

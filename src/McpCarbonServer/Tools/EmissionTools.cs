@@ -175,9 +175,18 @@ public static class EmissionTools
     }
 
     /// <summary>
-    /// Applies a factor, translating a dimension mismatch into a message that names both
-    /// units and what each measures.
+    /// Applies a factor, translating the library's refusals into messages that name what
+    /// went wrong and what to do instead.
     /// </summary>
+    /// <remarks>
+    /// Every exception the calculator raises here is a refusal rather than a fault: the
+    /// library declines to invent a conversion, a gas split, or a warming potential the
+    /// publisher never gave. Each one is recoverable by the caller — a different unit, a
+    /// different assessment report, a different factor — which is exactly why the guidance
+    /// has to survive the trip out. Left untranslated it reaches the client as "an error
+    /// occurred", and a caller that cannot tell a refusal from a crash retries the same
+    /// call or gives up on a factor that would have worked.
+    /// </remarks>
     private static EmissionResult Calculate(
         EmissionCalculator calculator,
         double value,
@@ -187,6 +196,47 @@ public static class EmissionTools
         try
         {
             return calculator.Calculate(new Quantity(value, unit), factor);
+        }
+        catch (GwpBasisMismatchException ex)
+        {
+            // Datasets commonly publish a single CO2e figure with no per-gas breakdown —
+            // most of DEFRA's material-use and waste tables are like this. Such a figure
+            // is only meaningful under the assessment report it was aggregated with, and
+            // re-aggregating it would mean inventing the split the publisher withheld.
+            // Naming the set that does work turns a dead end into one more call.
+            throw new McpException(
+                ex.PublishedBasis is GwpSet basis
+                    ? string.Format(
+                        CultureInfo.InvariantCulture,
+                        "Factor '{0}' publishes no gas breakdown, only an aggregate CO2e figure computed under {1}, " +
+                        "so it cannot be re-aggregated under {2}. Request this factor with gwpSet {1}, or choose a " +
+                        "factor that publishes its gases if the inventory must be {2}. Note that an inventory must " +
+                        "state a single assessment report, so mixing the two is not an option.",
+                        factor.Id,
+                        basis,
+                        calculator.GwpSet)
+                    : string.Format(
+                        CultureInfo.InvariantCulture,
+                        "Factor '{0}' publishes an aggregate CO2e figure without stating which assessment report " +
+                        "aggregated it, and without a gas breakdown to re-aggregate. It cannot be used in a {1} " +
+                        "calculation, or any other; choose a factor that publishes its gases.",
+                        factor.Id,
+                        calculator.GwpSet));
+        }
+        catch (GasNotCoveredException ex)
+        {
+            // The set covers the gas or it does not; treating a missing potential as zero
+            // would silently understate the figure, which is the one outcome worth
+            // refusing outright.
+            throw new McpException(
+                string.Format(
+                    CultureInfo.InvariantCulture,
+                    "Factor '{0}' includes {1}, for which the {2} GWP set publishes no potential. " +
+                    "Use an assessment report that covers this gas, or choose a factor without it — " +
+                    "the gas cannot be treated as zero.",
+                    factor.Id,
+                    ex.Gas,
+                    ex.Set));
         }
         catch (UnitConversionException)
         {
